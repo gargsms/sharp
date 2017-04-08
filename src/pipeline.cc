@@ -755,6 +755,20 @@ class PipelineWorker : public AsyncWorker {
           // 'cut out' the image, premultiplication is not required
           image = Cutout(overlayImage, image, baton->overlayGravity);
         } else {
+          // Ensure overlay has alpha channel
+          if (!HasAlpha(overlayImage)) {
+            double const multiplier = sharp::Is16Bit(overlayImage.interpretation()) ? 256.0 : 1.0;
+            overlayImage = overlayImage.bandjoin(
+              VImage::new_matrix(overlayImage.width(), overlayImage.height()).new_from_image(255 * multiplier)
+            );
+          }
+          // Ensure image has alpha channel
+          if (!HasAlpha(image)) {
+           double const multiplier = sharp::Is16Bit(image.interpretation()) ? 256.0 : 1.0;
+            image = image.bandjoin(
+             VImage::new_matrix(image.width(), image.height()).new_from_image(255 * multiplier)
+            );
+          }
           // Ensure overlay is premultiplied sRGB
           overlayImage = overlayImage.colourspace(VIPS_INTERPRETATION_sRGB).premultiply();
           if(baton->overlayXOffset >= 0 && baton->overlayYOffset >= 0) {
@@ -770,7 +784,7 @@ class PipelineWorker : public AsyncWorker {
       // Overlay text over the image
       if (baton->text.length() > 0) {
         image = Text(image, baton->text, baton->textAlign, baton->colors,
-          baton->pos, baton->textWidth, baton->font, baton->lineSpacing);
+          baton->pos, baton->textWidth, baton->textHeight, baton->font, baton->lineSpacing);
       }
 
       // Reverse premultiplication after all transformations:
@@ -1240,6 +1254,7 @@ NAN_METHOD(pipeline) {
   baton->pos[0] = To<int32_t>(Get(textOffset, 0).ToLocalChecked()).FromJust();
   baton->pos[1] = To<int32_t>(Get(textOffset, 1).ToLocalChecked()).FromJust();
   baton->textWidth = attrAs<int32_t>(options, "textWidth");
+  baton->textHeight = attrAs<int32_t>(options, "textHeight");
   baton->font = attrAsStr(options, "font");
   baton->lineSpacing = attrAs<int32_t>(options, "lineSpacing");
   // Boolean options

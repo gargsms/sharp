@@ -101,7 +101,7 @@ namespace sharp {
     Overlay text over the image
    */
   VImage Text(VImage image, std::string text, std::string align, int *colors,
-    int *pos, int const width, std::string font, int const spacing);
+    int *pos, int const width, int const height, std::string font, int const spacing);
 
 }  // namespace sharp
 

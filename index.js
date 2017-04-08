@@ -106,6 +106,7 @@ var Sharp = function(input, options) {
     textColor: [255, 255, 255],
     textOffset: [0, 0],
     textWidth: -1,
+    textHeight: -1,
     font: 'sans',
     fontSize: 12,
     lineSpacing: 0,
@@ -447,7 +448,6 @@ Sharp.prototype.overlayWith = function(overlay, options) {
 /*
   Overlay with a text, with various options of font, color, sizes
  */
-
 Sharp.prototype.text = function(text, options) {
   var alignReplacements = {
     left: 'low',
@@ -461,12 +461,13 @@ Sharp.prototype.text = function(text, options) {
     left: 0,
     top: 0,
     width: 0,
+    height: 0,
     font: 'sans',
     fontSize: 12,
-    lineSpacing: 0,
-    aspectRatio: 0.6
+    lineSpacing: 0
   };
   options = Object.assign(defaultOptions, options);
+
   if (isString(text)) {
     this.options.text = text;
   } else {
@@ -511,7 +512,12 @@ Sharp.prototype.text = function(text, options) {
     if (isInteger(options.width) && inRange(options.width, 0, maximum.width)) {
       this.options.textWidth = options.width;
     } else {
-      throw new Error('Invalid value for width ' + options.width + '. Expected an integer');
+      throw new Error('Invalid value for width ' + options.width);
+    }
+    if (isInteger(options.height) && inRange(options.height, 0, maximum.height)) {
+      this.options.textHeight = options.height;
+    } else {
+      throw new Error('Invalid value for height ' + options.height);
     }
     this.options.font = (this.options.font || 'sans') + ' ' + (this.options.fontSize || 12);
   }

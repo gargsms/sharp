@@ -459,11 +459,15 @@ namespace sharp {
   }
 
   VImage Text(VImage image, std::string text, std::string align, int *colors,
-    int *pos, int const width, std::string font,
+    int *pos, int const width, int const height, std::string font,
     int const spacing) {
 
     std::vector<double> color(colors, colors + 3);
-    std::vector<double> zero(3);
+    if(image.bands() == 4) {
+      std::vector<double>::iterator it;
+      it = color.end();
+      color.insert(it, 255);
+    }
 
     VImage pixel = image.new_from_image(color);
 
@@ -472,12 +476,31 @@ namespace sharp {
       VImage::option()
         ->set("font", &font[0u])
         ->set("width", width)
+        ->set("height", height)
         ->set("align", &align[0u])
-        ->set("spacing", spacing)
-        ->set("dpi", 300));
+        ->set("spacing", spacing));
 
-    overlay = overlay.embed(pos[0], pos[1], image.width(), image.height());
+    if(overlay.height() > height) {
+      overlay = overlay.resize( (double)height / overlay.height() );
+    }
+    if(overlay.width() > width) {
+      overlay = overlay.resize( (double)width / overlay.width() );
+    }
 
+    if(align == "low") {
+      overlay = overlay.embed(pos[0], pos[1] + (height - overlay.height()) / 2, 
+        image.width(), image.height());
+    } else if(align == "centre") {
+      overlay = overlay.embed(pos[0] + (width - overlay.width()) / 2, 
+        pos[1] + (height - overlay.height()) / 2, 
+        image.width(), image.height());
+    } else {
+      overlay = overlay.embed(pos[0] + (width - overlay.width()), 
+        pos[1] + (height - overlay.height()) / 2, 
+        image.width(), image.height());
+    }
+
+    // TODO: Consider allowing use of Pango Markup with different colors
     image = overlay.ifthenelse(pixel, image, VImage::option()
       ->set("blend", TRUE));
 

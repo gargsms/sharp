@@ -44,6 +44,7 @@ struct PipelineBaton {
   int colors[3];
   int pos[2];
   int textWidth;
+  int textHeight;
   std::string font;
   int lineSpacing;
   std::string booleanFileIn;
@@ -130,6 +131,7 @@ struct PipelineBaton {
     text(""),
     textAlign("left"),
     textWidth(-1),
+    textHeight(-1),
     font("sans"),
     lineSpacing(16),
     booleanBufferInLength(0),
