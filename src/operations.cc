@@ -1,6 +1,23 @@
+// Copyright 2013, 2014, 2015, 2016, 2017 Lovell Fuller and contributors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #include <algorithm>
-#include <tuple>
+#include <functional>
 #include <memory>
+#include <tuple>
+#include <vector>
+
 #include <vips/vips8>
 
 #include "common.h"
@@ -16,7 +33,7 @@ namespace sharp {
     Assumes alpha channels are already premultiplied and will be unpremultiplied after.
    */
   VImage Composite(VImage src, VImage dst, const int gravity) {
-    if(IsInputValidForComposition(src, dst)) {
+    if (IsInputValidForComposition(src, dst)) {
       // Enlarge overlay src, if required
       if (src.width() < dst.width() || src.height() < dst.height()) {
         // Calculate the (left, top) coordinates of the output image within the input image, applying the given gravity.
@@ -27,8 +44,7 @@ namespace sharp {
         std::vector<double> background { 0.0, 0.0, 0.0, 0.0 };
         src = src.embed(left, top, dst.width(), dst.height(), VImage::option()
           ->set("extend", VIPS_EXTEND_BACKGROUND)
-          ->set("background", background)
-        );
+          ->set("background", background));
       }
       return CompositeImage(src, dst);
     }
@@ -36,9 +52,8 @@ namespace sharp {
     return dst;
   }
 
-
   VImage Composite(VImage src, VImage dst, const int x, const int y) {
-    if(IsInputValidForComposition(src, dst)) {
+    if (IsInputValidForComposition(src, dst)) {
       // Enlarge overlay src, if required
       if (src.width() < dst.width() || src.height() < dst.height()) {
         // Calculate the (left, top) coordinates of the output image within the input image, applying the given gravity.
@@ -49,8 +64,7 @@ namespace sharp {
         std::vector<double> background { 0.0, 0.0, 0.0, 0.0 };
         src = src.embed(left, top, dst.width(), dst.height(), VImage::option()
           ->set("extend", VIPS_EXTEND_BACKGROUND)
-          ->set("background", background)
-        );
+          ->set("background", background));
       }
       return CompositeImage(src, dst);
     }
@@ -145,12 +159,11 @@ namespace sharp {
       std::vector<double> background { 0.0, 0.0, 0.0, 0.0 };
       mask = mask.embed(left, top, dst.width(), dst.height(), VImage::option()
               ->set("extend", VIPS_EXTEND_BACKGROUND)
-              ->set("background", background)
-      );
+              ->set("background", background));
     }
 
     // we use the mask alpha if it has alpha
-    if(maskHasAlpha) {
+    if (maskHasAlpha) {
       mask = mask.extract_band(mask.bands() - 1, VImage::option()->set("n", 1));;
     }
 
@@ -177,7 +190,7 @@ namespace sharp {
   /*
    * Stretch luminance to cover full dynamic range.
    */
-  VImage Normalize(VImage image) {
+  VImage Normalise(VImage image) {
     // Get original colourspace
     VipsInterpretation typeBeforeNormalize = image.interpretation();
     if (typeBeforeNormalize == VIPS_INTERPRETATION_RGB) {
@@ -284,87 +297,121 @@ namespace sharp {
         colourspaceBeforeSharpen = VIPS_INTERPRETATION_sRGB;
       }
       return image.sharpen(
-        VImage::option()->set("sigma", sigma)->set("m1", flat)->set("m2", jagged)
-      ).colourspace(colourspaceBeforeSharpen);
+        VImage::option()->set("sigma", sigma)->set("m1", flat)->set("m2", jagged))
+        .colourspace(colourspaceBeforeSharpen);
     }
+  }
+
+  /*
+    Calculate the Shannon entropy
+  */
+  double EntropyStrategy::operator()(VImage image) {
+    return image.hist_find().hist_entropy();
+  }
+
+  /*
+    Calculate the intensity of edges, skin tone and saturation
+  */
+  double AttentionStrategy::operator()(VImage image) {
+    // Flatten RGBA onto a mid-grey background
+    if (image.bands() == 4 && HasAlpha(image)) {
+      double const midgrey = sharp::Is16Bit(image.interpretation()) ? 32768.0 : 128.0;
+      std::vector<double> background { midgrey, midgrey, midgrey };
+      image = image.flatten(VImage::option()->set("background", background));
+    }
+    // Convert to LAB colourspace
+    VImage lab = image.colourspace(VIPS_INTERPRETATION_LAB);
+    VImage l = lab[0];
+    VImage a = lab[1];
+    VImage b = lab[2];
+    // Edge detect luminosity with the Sobel operator
+    VImage sobel = vips::VImage::new_matrixv(3, 3,
+      -1.0, 0.0, 1.0,
+      -2.0, 0.0, 2.0,
+      -1.0, 0.0, 1.0);
+    VImage edges = l.conv(sobel).abs() + l.conv(sobel.rot90()).abs();
+    // Skin tone chroma thresholds trained with http://humanae.tumblr.com/
+    VImage skin = (a >= 3) & (a <= 22) & (b >= 4) & (b <= 31);
+    // Chroma >~50% saturation
+    VImage lch = lab.colourspace(VIPS_INTERPRETATION_LCH);
+    VImage c = lch[1];
+    VImage saturation = c > 60;
+    // Find maximum in combined saliency mask
+    VImage mask = edges + skin + saturation;
+    return mask.max();
   }
 
   /*
     Calculate crop area based on image entropy
   */
-  std::tuple<int, int> EntropyCrop(VImage image, int const outWidth, int const outHeight) {
+  std::tuple<int, int> Crop(
+    VImage image, int const outWidth, int const outHeight, std::function<double(VImage)> strategy
+  ) {
     int left = 0;
     int top = 0;
     int const inWidth = image.width();
     int const inHeight = image.height();
     if (inWidth > outWidth) {
-      // Reduce width by repeated removing slices from edge with lowest entropy
+      // Reduce width by repeated removing slices from edge with lowest score
       int width = inWidth;
-      double leftEntropy = 0.0;
-      double rightEntropy = 0.0;
+      double leftScore = 0.0;
+      double rightScore = 0.0;
       // Max width of each slice
       int const maxSliceWidth = static_cast<int>(ceil((inWidth - outWidth) / 8.0));
       while (width > outWidth) {
         // Width of current slice
         int const slice = std::min(width - outWidth, maxSliceWidth);
-        if (leftEntropy == 0.0) {
-          // Update entropy of left slice
-          leftEntropy = Entropy(image.extract_area(left, 0, slice, inHeight));
+        if (leftScore == 0.0) {
+          // Update score of left slice
+          leftScore = strategy(image.extract_area(left, 0, slice, inHeight));
         }
-        if (rightEntropy == 0.0) {
-          // Update entropy of right slice
-          rightEntropy = Entropy(image.extract_area(width - slice - 1, 0, slice, inHeight));
+        if (rightScore == 0.0) {
+          // Update score of right slice
+          rightScore = strategy(image.extract_area(width - slice - 1, 0, slice, inHeight));
         }
-        // Keep slice with highest entropy
-        if (leftEntropy >= rightEntropy) {
+        // Keep slice with highest score
+        if (leftScore >= rightScore) {
           // Discard right slice
-          rightEntropy = 0.0;
+          rightScore = 0.0;
         } else {
           // Discard left slice
-          leftEntropy = 0.0;
+          leftScore = 0.0;
           left = left + slice;
         }
         width = width - slice;
       }
     }
     if (inHeight > outHeight) {
-      // Reduce height by repeated removing slices from edge with lowest entropy
+      // Reduce height by repeated removing slices from edge with lowest score
       int height = inHeight;
-      double topEntropy = 0.0;
-      double bottomEntropy = 0.0;
+      double topScore = 0.0;
+      double bottomScore = 0.0;
       // Max height of each slice
       int const maxSliceHeight = static_cast<int>(ceil((inHeight - outHeight) / 8.0));
       while (height > outHeight) {
         // Height of current slice
         int const slice = std::min(height - outHeight, maxSliceHeight);
-        if (topEntropy == 0.0) {
-          // Update entropy of top slice
-          topEntropy = Entropy(image.extract_area(0, top, inWidth, slice));
+        if (topScore == 0.0) {
+          // Update score of top slice
+          topScore = strategy(image.extract_area(0, top, inWidth, slice));
         }
-        if (bottomEntropy == 0.0) {
-          // Update entropy of bottom slice
-          bottomEntropy = Entropy(image.extract_area(0, height - slice - 1, inWidth, slice));
+        if (bottomScore == 0.0) {
+          // Update score of bottom slice
+          bottomScore = strategy(image.extract_area(0, height - slice - 1, inWidth, slice));
         }
-        // Keep slice with highest entropy
-        if (topEntropy >= bottomEntropy) {
+        // Keep slice with highest score
+        if (topScore >= bottomScore) {
           // Discard bottom slice
-          bottomEntropy = 0.0;
+          bottomScore = 0.0;
         } else {
           // Discard top slice
-          topEntropy = 0.0;
+          topScore = 0.0;
           top = top + slice;
         }
         height = height - slice;
       }
     }
     return std::make_tuple(left, top);
-  }
-
-  /*
-    Calculate the Shannon entropy for an image
-  */
-  double Entropy(VImage image) {
-    return image.hist_find().hist_entropy();
   }
 
   /*
@@ -381,12 +428,11 @@ namespace sharp {
       ->set("tile_height", 10)
       ->set("max_tiles", static_cast<int>(round(1.0 + need_lines / 10.0)))
       ->set("access", VIPS_ACCESS_SEQUENTIAL)
-      ->set("threaded", TRUE)
-    );
+      ->set("threaded", TRUE));
   }
 
   VImage Threshold(VImage image, double const threshold, bool const thresholdGrayscale) {
-    if(!thresholdGrayscale) {
+    if (!thresholdGrayscale) {
       return image >= threshold;
     }
     return image.colourspace(VIPS_INTERPRETATION_B_W) >= threshold;
@@ -396,7 +442,8 @@ namespace sharp {
     Perform boolean/bitwise operation on image color channels - results in one channel image
   */
   VImage Bandbool(VImage image, VipsOperationBoolean const boolean) {
-    return image.bandbool(boolean);
+    image = image.bandbool(boolean);
+    return image.copy(VImage::option()->set("interpretation", VIPS_INTERPRETATION_B_W));
   }
 
   /*
@@ -450,7 +497,7 @@ namespace sharp {
     int width = right - left;
     int height = bottom - top;
 
-    if(width <= 0 || height <= 0) {
+    if (width <= 0 || height <= 0) {
       throw VError("Unexpected error while trimming. Try to lower the tolerance");
     }
 

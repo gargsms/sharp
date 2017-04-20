@@ -1,6 +1,8 @@
 machine:
+  node:
+    version: v4.6.1
   services:
     - docker
 test:
   override:
-    - ./packaging/test.sh
+    - ./packaging/test-linux-x64.sh

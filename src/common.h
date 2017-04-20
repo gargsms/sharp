@@ -1,14 +1,95 @@
+// Copyright 2013, 2014, 2015, 2016, 2017 Lovell Fuller and contributors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #ifndef SRC_COMMON_H_
 #define SRC_COMMON_H_
 
 #include <string>
 #include <tuple>
+#include <vector>
 
+#include <node.h>
+#include <nan.h>
 #include <vips/vips8>
+
+// Verify platform and compiler compatibility
+
+#if (VIPS_MAJOR_VERSION < 8 || (VIPS_MAJOR_VERSION == 8 && VIPS_MINOR_VERSION < 4))
+#error libvips version 8.4.x required - see sharp.dimens.io/page/install
+#endif
+
+#if ((!defined(__clang__)) && defined(__GNUC__) && (__GNUC__ < 4 || (__GNUC__ == 4 && __GNUC_MINOR__ < 6)))
+#error GCC version 4.6+ is required for C++11 features - see sharp.dimens.io/page/install#prerequisites
+#endif
+
+#if (defined(__clang__) && defined(__has_feature))
+#if (!__has_feature(cxx_range_for))
+#error clang version 3.0+ is required for C++11 features - see sharp.dimens.io/page/install#prerequisites
+#endif
+#endif
 
 using vips::VImage;
 
 namespace sharp {
+
+  struct InputDescriptor {
+    std::string name;
+    std::string file;
+    char *buffer;
+    size_t bufferLength;
+    int density;
+    int rawChannels;
+    int rawWidth;
+    int rawHeight;
+    int createChannels;
+    int createWidth;
+    int createHeight;
+    double createBackground[4];
+
+    InputDescriptor():
+      buffer(nullptr),
+      bufferLength(0),
+      density(72),
+      rawChannels(0),
+      rawWidth(0),
+      rawHeight(0),
+      createChannels(0),
+      createWidth(0),
+      createHeight(0) {
+        createBackground[0] = 0.0;
+        createBackground[1] = 0.0;
+        createBackground[2] = 0.0;
+        createBackground[3] = 255.0;
+      }
+  };
+
+  // Convenience methods to access the attributes of a v8::Object
+  bool HasAttr(v8::Handle<v8::Object> obj, std::string attr);
+  std::string AttrAsStr(v8::Handle<v8::Object> obj, std::string attr);
+  template<typename T> v8::Local<T> AttrAs(v8::Handle<v8::Object> obj, std::string attr) {
+    return Nan::Get(obj, Nan::New(attr).ToLocalChecked()).ToLocalChecked().As<T>();
+  }
+  template<typename T> T AttrTo(v8::Handle<v8::Object> obj, std::string attr) {
+    return Nan::To<T>(Nan::Get(obj, Nan::New(attr).ToLocalChecked()).ToLocalChecked()).FromJust();
+  }
+  template<typename T> T AttrTo(v8::Handle<v8::Object> obj, int attr) {
+    return Nan::To<T>(Nan::Get(obj, attr).ToLocalChecked()).FromJust();
+  }
+
+  // Create an InputDescriptor instance from a v8::Object describing an input image
+  InputDescriptor* CreateInputDescriptor(
+    v8::Handle<v8::Object> input, std::vector<v8::Local<v8::Object>> buffersToPersist);
 
   enum class ImageType {
     JPEG,
@@ -56,6 +137,11 @@ namespace sharp {
     Determine image format of a file.
   */
   ImageType DetermineImageType(char const *file);
+
+  /*
+    Open an image from the given InputDescriptor (filesystem, compressed buffer, raw pixel data)
+  */
+  std::tuple<VImage, ImageType> OpenInput(InputDescriptor *descriptor, VipsAccess accessMethod);
 
   /*
     Does this image have an embedded profile?
@@ -132,6 +218,16 @@ namespace sharp {
     Get boolean operation type from string
   */
   VipsOperationBoolean GetBooleanOperation(std::string const opStr);
+
+  /*
+    Get interpretation type from string
+  */
+  VipsInterpretation GetInterpretation(std::string const typeStr);
+
+  /*
+    Convert RGBA value to another colourspace
+  */
+  std::vector<double> GetRgbaAsColourspace(std::vector<double> const rgba, VipsInterpretation const interpretation);
 
 }  // namespace sharp
 

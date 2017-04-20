@@ -1,31 +1,77 @@
+// Copyright 2013, 2014, 2015, 2016, 2017 Lovell Fuller and contributors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #include <cstdlib>
 #include <string>
 #include <string.h>
+#include <vector>
+
+#include <node.h>
+#include <node_buffer.h>
+#include <nan.h>
 #include <vips/vips8>
 
 #include "common.h"
 
-// Verify platform and compiler compatibility
-
-#if (VIPS_MAJOR_VERSION < 8 || (VIPS_MAJOR_VERSION == 8 && VIPS_MINOR_VERSION < 2))
-#error libvips version 8.2.0+ required - see sharp.dimens.io/page/install
-#endif
-
-#if ((!defined(__clang__)) && defined(__GNUC__) && (__GNUC__ < 4 || (__GNUC__ == 4 && __GNUC_MINOR__ < 6)))
-#error GCC version 4.6+ is required for C++11 features - see sharp.dimens.io/page/install#prerequisites
-#endif
-
-#if (defined(__clang__) && defined(__has_feature))
-#if (!__has_feature(cxx_range_for))
-#error clang version 3.0+ is required for C++11 features - see sharp.dimens.io/page/install#prerequisites
-#endif
-#endif
-
-#define EXIF_IFD0_ORIENTATION "exif-ifd0-Orientation"
-
 using vips::VImage;
 
 namespace sharp {
+
+  // Convenience methods to access the attributes of a v8::Object
+  bool HasAttr(v8::Handle<v8::Object> obj, std::string attr) {
+    return Nan::Has(obj, Nan::New(attr).ToLocalChecked()).FromJust();
+  }
+  std::string AttrAsStr(v8::Handle<v8::Object> obj, std::string attr) {
+    return *Nan::Utf8String(Nan::Get(obj, Nan::New(attr).ToLocalChecked()).ToLocalChecked());
+  }
+
+  // Create an InputDescriptor instance from a v8::Object describing an input image
+  InputDescriptor* CreateInputDescriptor(
+    v8::Handle<v8::Object> input, std::vector<v8::Local<v8::Object>> buffersToPersist
+  ) {
+    Nan::HandleScope();
+    InputDescriptor *descriptor = new InputDescriptor;
+    if (HasAttr(input, "file")) {
+      descriptor->file = AttrAsStr(input, "file");
+    } else if (HasAttr(input, "buffer")) {
+      v8::Local<v8::Object> buffer = AttrAs<v8::Object>(input, "buffer");
+      descriptor->bufferLength = node::Buffer::Length(buffer);
+      descriptor->buffer = node::Buffer::Data(buffer);
+      buffersToPersist.push_back(buffer);
+    }
+    // Density for vector-based input
+    if (HasAttr(input, "density")) {
+      descriptor->density = AttrTo<uint32_t>(input, "density");
+    }
+    // Raw pixel input
+    if (HasAttr(input, "rawChannels")) {
+      descriptor->rawChannels = AttrTo<uint32_t>(input, "rawChannels");
+      descriptor->rawWidth = AttrTo<uint32_t>(input, "rawWidth");
+      descriptor->rawHeight = AttrTo<uint32_t>(input, "rawHeight");
+    }
+    // Create new image
+    if (HasAttr(input, "createChannels")) {
+      descriptor->createChannels = AttrTo<uint32_t>(input, "createChannels");
+      descriptor->createWidth = AttrTo<uint32_t>(input, "createWidth");
+      descriptor->createHeight = AttrTo<uint32_t>(input, "createHeight");
+      v8::Local<v8::Object> createBackground = AttrAs<v8::Object>(input, "createBackground");
+      for (unsigned int i = 0; i < 4; i++) {
+        descriptor->createBackground[i] = AttrTo<double>(createBackground, i);
+      }
+    }
+    return descriptor;
+  }
 
   // How many tasks are in the queue?
   volatile int counterQueue = 0;
@@ -150,6 +196,87 @@ namespace sharp {
   }
 
   /*
+    Open an image from the given InputDescriptor (filesystem, compressed buffer, raw pixel data)
+  */
+  std::tuple<VImage, ImageType> OpenInput(InputDescriptor *descriptor, VipsAccess accessMethod) {
+    VImage image;
+    ImageType imageType;
+    if (descriptor->buffer != nullptr) {
+      if (descriptor->rawChannels > 0) {
+        // Raw, uncompressed pixel data
+        image = VImage::new_from_memory(descriptor->buffer, descriptor->bufferLength,
+          descriptor->rawWidth, descriptor->rawHeight, descriptor->rawChannels, VIPS_FORMAT_UCHAR);
+        if (descriptor->rawChannels < 3) {
+          image.get_image()->Type = VIPS_INTERPRETATION_B_W;
+        } else {
+          image.get_image()->Type = VIPS_INTERPRETATION_sRGB;
+        }
+        imageType = ImageType::RAW;
+      } else {
+        // Compressed data
+        imageType = DetermineImageType(descriptor->buffer, descriptor->bufferLength);
+        if (imageType != ImageType::UNKNOWN) {
+          try {
+            vips::VOption *option = VImage::option()->set("access", accessMethod);
+            if (imageType == ImageType::SVG || imageType == ImageType::PDF) {
+              option->set("dpi", static_cast<double>(descriptor->density));
+            }
+            if (imageType == ImageType::MAGICK) {
+              option->set("density", std::to_string(descriptor->density).data());
+            }
+            image = VImage::new_from_buffer(descriptor->buffer, descriptor->bufferLength, nullptr, option);
+            if (imageType == ImageType::SVG || imageType == ImageType::PDF || imageType == ImageType::MAGICK) {
+              SetDensity(image, descriptor->density);
+            }
+          } catch (...) {
+            throw vips::VError("Input buffer has corrupt header");
+          }
+        } else {
+          throw vips::VError("Input buffer contains unsupported image format");
+        }
+      }
+    } else {
+      if (descriptor->createChannels > 0) {
+        // Create new image
+        std::vector<double> background = {
+          descriptor->createBackground[0],
+          descriptor->createBackground[1],
+          descriptor->createBackground[2]
+        };
+        if (descriptor->createChannels == 4) {
+          background.push_back(descriptor->createBackground[3]);
+        }
+        image = VImage::new_matrix(descriptor->createWidth, descriptor->createHeight).new_from_image(background);
+        image.get_image()->Type = VIPS_INTERPRETATION_sRGB;
+        imageType = ImageType::RAW;
+      } else {
+        // From filesystem
+        imageType = DetermineImageType(descriptor->file.data());
+        if (imageType != ImageType::UNKNOWN) {
+          try {
+            vips::VOption *option = VImage::option()->set("access", accessMethod);
+            if (imageType == ImageType::SVG || imageType == ImageType::PDF) {
+              option->set("dpi", static_cast<double>(descriptor->density));
+            }
+            if (imageType == ImageType::MAGICK) {
+              option->set("density", std::to_string(descriptor->density).data());
+            }
+            image = VImage::new_from_file(descriptor->file.data(), option);
+            if (imageType == ImageType::SVG || imageType == ImageType::PDF || imageType == ImageType::MAGICK) {
+              SetDensity(image, descriptor->density);
+            }
+          } catch (...) {
+            throw vips::VError("Input file has corrupt header");
+          }
+        } else {
+          throw vips::VError("Input file is missing or of an unsupported image format");
+        }
+      }
+    }
+    return std::make_tuple(image, imageType);
+  }
+
+  /*
     Does this image have an embedded profile?
   */
   bool HasProfile(VImage image) {
@@ -166,8 +293,7 @@ namespace sharp {
     return (
       (bands == 2 && interpretation == VIPS_INTERPRETATION_B_W) ||
       (bands == 4 && interpretation != VIPS_INTERPRETATION_CMYK) ||
-      (bands == 5 && interpretation == VIPS_INTERPRETATION_CMYK)
-    );
+      (bands == 5 && interpretation == VIPS_INTERPRETATION_CMYK));
   }
 
   /*
@@ -175,11 +301,8 @@ namespace sharp {
   */
   int ExifOrientation(VImage image) {
     int orientation = 0;
-    if (image.get_typeof(EXIF_IFD0_ORIENTATION) != 0) {
-      char const *exif = image.get_string(EXIF_IFD0_ORIENTATION);
-      if (exif != nullptr) {
-        orientation = atoi(&exif[0]);
-      }
+    if (image.get_typeof(VIPS_META_ORIENTATION) != 0) {
+      orientation = image.get_int(VIPS_META_ORIENTATION);
     }
     return orientation;
   }
@@ -188,16 +311,14 @@ namespace sharp {
     Set EXIF Orientation of image.
   */
   void SetExifOrientation(VImage image, int const orientation) {
-    char exif[3];
-    g_snprintf(exif, sizeof(exif), "%d", orientation);
-    image.set(EXIF_IFD0_ORIENTATION, exif);
+    image.set(VIPS_META_ORIENTATION, orientation);
   }
 
   /*
     Remove EXIF Orientation from image.
   */
   void RemoveExifOrientation(VImage image) {
-    SetExifOrientation(image, 0);
+    vips_image_remove(image.get_image(), VIPS_META_ORIENTATION);
   }
 
   /*
@@ -295,23 +416,23 @@ namespace sharp {
     int top = 0;
 
     // assign only if valid
-    if(x >= 0 && x < (inWidth - outWidth)) {
+    if (x >= 0 && x < (inWidth - outWidth)) {
       left = x;
-    } else if(x >= (inWidth - outWidth)) {
+    } else if (x >= (inWidth - outWidth)) {
       left = inWidth - outWidth;
     }
 
-    if(y >= 0 && y < (inHeight - outHeight)) {
+    if (y >= 0 && y < (inHeight - outHeight)) {
       top = y;
-    } else if(x >= (inHeight - outHeight)) {
+    } else if (y >= (inHeight - outHeight)) {
       top = inHeight - outHeight;
     }
 
     // the resulting left and top could have been outside the image after calculation from bottom/right edges
-    if(left < 0) {
+    if (left < 0) {
       left = 0;
     }
-    if(top < 0) {
+    if (top < 0) {
       top = 0;
     }
 
@@ -338,8 +459,31 @@ namespace sharp {
   */
   VipsOperationBoolean GetBooleanOperation(std::string const opStr) {
     return static_cast<VipsOperationBoolean>(
-      vips_enum_from_nick(nullptr, VIPS_TYPE_OPERATION_BOOLEAN, opStr.data())
-    );
+      vips_enum_from_nick(nullptr, VIPS_TYPE_OPERATION_BOOLEAN, opStr.data()));
+  }
+
+  /*
+    Get interpretation type from string
+  */
+  VipsInterpretation GetInterpretation(std::string const typeStr) {
+    return static_cast<VipsInterpretation>(
+      vips_enum_from_nick(nullptr, VIPS_TYPE_INTERPRETATION, typeStr.data()));
+  }
+
+  /*
+    Convert RGBA value to another colourspace
+  */
+  std::vector<double> GetRgbaAsColourspace(std::vector<double> const rgba, VipsInterpretation const interpretation) {
+    int const bands = static_cast<int>(rgba.size());
+    if (bands < 3 || interpretation == VIPS_INTERPRETATION_sRGB || interpretation == VIPS_INTERPRETATION_RGB) {
+      return rgba;
+    } else {
+      VImage pixel = VImage::new_matrix(1, 1);
+      pixel.set("bands", bands);
+      pixel = pixel.new_from_image(rgba);
+      pixel = pixel.colourspace(interpretation, VImage::option()->set("source_space", VIPS_INTERPRETATION_sRGB));
+      return pixel(0, 0);
+    }
   }
 
 }  // namespace sharp

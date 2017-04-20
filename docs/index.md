@@ -13,11 +13,8 @@ Lanczos resampling ensures quality is not sacrificed for speed.
 As well as image resizing, operations such as
 rotation, extraction, compositing and gamma correction are available.
 
-Most Windows (x64), Linux and ARMv6+ systems do not require
+OS X, Windows (x64), Linux (x64, ARM) systems do not require
 the installation of any external runtime dependencies.
-
-Use with OS X is as simple as running `brew install homebrew/science/vips`
-to install the libvips dependency.
 
 [![Test Coverage](https://coveralls.io/repos/lovell/sharp/badge.png?branch=master)](https://coveralls.io/r/lovell/sharp?branch=master)
 
@@ -97,12 +94,17 @@ the help and code contributions of the following people:
 * [Kleis Auke Wolthuizen](https://github.com/kleisauke)
 * [Matt Hirsch](https://github.com/mhirsch)
 * [Rahul Nanwani](https://github.com/rnanwani)
+* [Matthias Thoemmes](https://github.com/cmtt)
+* [Patrick Paskaris](https://github.com/ppaskaris)
+* [Jérémy Lal](https://github.com/kapouer)
+* [Alice Monday](https://github.com/alice0meta)
+* [Kristo Jorgenson](https://github.com/kristojorg)
 
 Thank you!
 
 ### Licence
 
-Copyright 2013, 2014, 2015, 2016 Lovell Fuller and contributors.
+Copyright 2013, 2014, 2015, 2016, 2017 Lovell Fuller and contributors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
