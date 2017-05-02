@@ -49,6 +49,7 @@ using vips::VError;
 using sharp::Composite;
 using sharp::Cutout;
 using sharp::Normalize;
+using sharp::Tilt;
 using sharp::Gamma;
 using sharp::Blur;
 using sharp::Convolve;
@@ -561,6 +562,11 @@ class PipelineWorker : public AsyncWorker {
       if (baton->flop) {
         image = image.flip(VIPS_DIRECTION_HORIZONTAL);
         RemoveExifOrientation(image);
+      }
+
+      // Tilt an image
+      if (baton->tiltAngle) {
+        image = Tilt(image, baton->tiltAngle);
       }
 
       // Crop/embed
@@ -1288,6 +1294,7 @@ NAN_METHOD(pipeline) {
   baton->greyscale = attrAs<bool>(options, "greyscale");
   baton->normalize = attrAs<bool>(options, "normalize");
   baton->angle = attrAs<int32_t>(options, "angle");
+  baton->tiltAngle = attrAs<int32_t>(options, "tiltAngle");
   baton->rotateBeforePreExtract = attrAs<bool>(options, "rotateBeforePreExtract");
   baton->flip = attrAs<bool>(options, "flip");
   baton->flop = attrAs<bool>(options, "flop");

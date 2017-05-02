@@ -42,6 +42,11 @@ namespace sharp {
   VImage Normalize(VImage image);
 
   /*
+   * Tilt the image to an arbitraty degree
+   */
+  VImage Tilt(VImage image, int angle);
+
+  /*
    * Gamma encoding/decoding
    */
   VImage Gamma(VImage image, double const exponent);

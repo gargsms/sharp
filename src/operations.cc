@@ -213,6 +213,13 @@ namespace sharp {
   }
 
   /*
+   * Tilt the image by an arbitrary degree
+   */
+  VImage Tilt(VImage image, int angle) {
+    return image.similarity(VImage::option()->set("angle", angle));
+  }
+
+  /*
    * Gamma encoding/decoding
    */
   VImage Gamma(VImage image, double const exponent) {
@@ -488,15 +495,15 @@ namespace sharp {
     }
 
     if(align == "low") {
-      overlay = overlay.embed(pos[0], pos[1] + (height - overlay.height()) / 2, 
+      overlay = overlay.embed(pos[0], pos[1] + (height - overlay.height()) / 2,
         image.width(), image.height());
     } else if(align == "centre") {
-      overlay = overlay.embed(pos[0] + (width - overlay.width()) / 2, 
-        pos[1] + (height - overlay.height()) / 2, 
+      overlay = overlay.embed(pos[0] + (width - overlay.width()) / 2,
+        pos[1] + (height - overlay.height()) / 2,
         image.width(), image.height());
     } else {
-      overlay = overlay.embed(pos[0] + (width - overlay.width()), 
-        pos[1] + (height - overlay.height()) / 2, 
+      overlay = overlay.embed(pos[0] + (width - overlay.width()),
+        pos[1] + (height - overlay.height()) / 2,
         image.width(), image.height());
     }
 

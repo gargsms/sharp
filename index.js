@@ -66,6 +66,7 @@ var Sharp = function(input, options) {
     canvas: 'crop',
     crop: 0,
     angle: 0,
+    tiltAngle: 0,
     rotateBeforePreExtract: false,
     flip: false,
     flop: false,
@@ -535,6 +536,24 @@ Sharp.prototype.rotate = function(angle) {
     this.options.angle = angle;
   } else {
     throw new Error('Unsupported angle (0, 90, 180, 270) ' + angle);
+  }
+  return this;
+};
+
+/*
+  Tilt the output by arbitrary angle. Uses rotate for multiples of 90
+*/
+Sharp.prototype.tilt = function(angle) {
+  if (!isDefined(angle)) {
+    throw new Error('Angle is a required argument');
+  } else if (isInteger(angle)) {
+    if(contains(angle, [0, 90, 180, 270])) {
+      this.options.angle = angle;
+    } else {
+      this.options.tiltAngle = angle;
+    }
+  } else {
+    throw new Error('Unsupported angle ' + angle + '. Expected integer');
   }
   return this;
 };
