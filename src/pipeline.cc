@@ -647,12 +647,6 @@ class PipelineWorker : public Nan::AsyncWorker {
         }
       }
 
-      // Overlay text over the image
-      if (baton->text.length() > 0) {
-        image = Text(image, baton->text, baton->textAlign, baton->colors,
-          baton->pos, baton->textWidth, baton->font, baton->lineSpacing);
-      }
-
       // Reverse premultiplication after all transformations:
       if (shouldPremultiplyAlpha) {
         image = image.unpremultiply();
