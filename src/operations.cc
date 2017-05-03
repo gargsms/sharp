@@ -216,6 +216,9 @@ namespace sharp {
    * Tilt the image by an arbitrary degree
    */
   VImage Tilt(VImage image, int angle) {
+    if (!HasAlpha(image)) {
+      image = image.bandjoin(255);
+    }
     return image.similarity(VImage::option()->set("angle", angle));
   }
 
