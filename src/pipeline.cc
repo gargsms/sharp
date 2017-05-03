@@ -852,8 +852,9 @@ class PipelineWorker : public Nan::AsyncWorker {
           image.tiffsave(const_cast<char*>(baton->fileOut.data()), VImage::option()
             ->set("strip", !baton->withMetadata)
             ->set("Q", baton->tiffQuality)
+            ->set("squash", baton->tiffSquash)
             ->set("compression", baton->tiffCompression)
-            ->set("predictor", baton->tiffPredictor) );
+            ->set("predictor", baton->tiffPredictor));
           baton->formatOut = "tiff";
           baton->channels = std::min(baton->channels, 3);
         } else if (baton->formatOut == "dz" || isDz || isDzZip) {
@@ -1210,6 +1211,7 @@ NAN_METHOD(pipeline) {
   baton->webpLossless = AttrTo<bool>(options, "webpLossless");
   baton->webpNearLossless = AttrTo<bool>(options, "webpNearLossless");
   baton->tiffQuality = AttrTo<uint32_t>(options, "tiffQuality");
+  baton->tiffSquash = AttrTo<bool>(options, "tiffSquash");
   // tiff compression options
   baton->tiffCompression = static_cast<VipsForeignTiffCompression>(
   vips_enum_from_nick(nullptr, VIPS_TYPE_FOREIGN_TIFF_COMPRESSION,
