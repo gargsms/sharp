@@ -441,6 +441,11 @@ class PipelineWorker : public Nan::AsyncWorker {
         sharp::RemoveExifOrientation(image);
       }
 
+      if (baton->tiltAngle) {
+        image = sharp::Tilt(image, baton->tiltAngle);
+        sharp::RemoveExifOrientation(image);
+      }
+
       // Join additional color channels to the image
       if (baton->joinChannelIn.size() > 0) {
         VImage joinImage;
@@ -1153,6 +1158,7 @@ NAN_METHOD(pipeline) {
   baton->greyscale = AttrTo<bool>(options, "greyscale");
   baton->normalise = AttrTo<bool>(options, "normalise");
   baton->angle = AttrTo<int32_t>(options, "angle");
+  baton->tiltAngle = AttrTo<int32_t>(options, "tiltAngle");
   baton->rotateBeforePreExtract = AttrTo<bool>(options, "rotateBeforePreExtract");
   baton->flip = AttrTo<bool>(options, "flip");
   baton->flop = AttrTo<bool>(options, "flop");
