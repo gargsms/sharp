@@ -56,6 +56,15 @@ namespace sharp {
     int createWidth;
     int createHeight;
     double createBackground[4];
+    std::string text;
+    int textWidth;
+    int textHeight;
+    std::string textAlign;
+    double textColor[4];
+    double textBackground[4];
+    std::string textFont;
+    int textFontSize;
+    double textLinespacing;
 
     InputDescriptor():
       buffer(nullptr),
@@ -66,11 +75,23 @@ namespace sharp {
       rawHeight(0),
       createChannels(0),
       createWidth(0),
-      createHeight(0) {
+      createHeight(0),
+      textWidth(0),
+      textHeight(0),
+      textFontSize(0),
+      textLinespacing(0.0) {
         createBackground[0] = 0.0;
         createBackground[1] = 0.0;
         createBackground[2] = 0.0;
         createBackground[3] = 255.0;
+        textColor[0] = 0.0;
+        textColor[1] = 0.0;
+        textColor[2] = 0.0;
+        textColor[3] = 255.0;
+        textBackground[0] = 0.0;
+        textBackground[1] = 0.0;
+        textBackground[2] = 0.0;
+        textBackground[3] = 0.0;
       }
   };
 

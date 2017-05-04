@@ -26,6 +26,17 @@
         -   `options.create.height` **[Number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)?** 
         -   `options.create.channels` **[Number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)?** 3-4
         -   `options.create.background` **([String](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String) \| [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object))?** parsed by the [color](https://www.npmjs.org/package/color) module to extract values for red, green, blue and alpha.
+    -   `options.text` **[Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)?** describe a new image with text.
+        -   `options.text.align` **[String](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)?**  (optional, default `left`)
+        -   `options.text.color` **([String](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String) \| [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object))?**  (optional, default `rgba(255,255,255,1)`)
+        -   `options.text.colour` **([String](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String) \| [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object))?** Alias for `options.text.color`
+        -   `options.text.width` **[Number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)?** The **maximum** width of the rendered image.
+        -   `options.text.height` **[Number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)?** The **maximum** height of the rendered image. At least one of `options.text.width`, `options.text.height` is needed for proper text rendering.
+        -   `options.text.font` **[String](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)?** Should be installed on the machine (optional, default `sans`)
+        -   `options.text.fontSize` **[Number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)?** This will be ignored if both `options.text.width` and `options.text.height` are specified and text will be autofit to image bounds. (optional, default `12`)
+        -   `options.text.lineSpacing` **[Number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)?** Can accept floating-point values (optional, default `0`)
+        -   `options.text.backgroundColor` **([String](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String) \| [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object))?** Text background (optional, default `rgba(0,0,0,0)`)
+        -   `options.text.backgroundColour` **([String](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String) \| [Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object))?** Alias for `options.text.backgroundColor`
 
 **Examples**
 
@@ -58,10 +69,25 @@ sharp(null, {
     width: 300,
     height: 200,
     channels: 4,
-    background: { r: 255, g: 0, b: 0, alpha: 128 }
+    background: { r: 255, g: 0, b: 0, alpha: 0.5 }
   }
 })
 .png()
+.toBuffer()
+.then( ... );
+```
+
+```javascript
+// Create a blank image, no more than 400x600 with some text
+sharp(null, {
+  text: {
+    value: '<span>This text can use Pango Markup</span>',
+    width: 400,
+    height: 600,
+    color: '#FFF',
+    backgroundColor: '#F00'
+  }
+})
 .toBuffer()
 .then( ... );
 ```

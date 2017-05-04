@@ -70,6 +70,22 @@ namespace sharp {
         descriptor->createBackground[i] = AttrTo<double>(createBackground, i);
       }
     }
+    // Create new image with text
+    if (HasAttr(input, "textValue")) {
+      descriptor->text = AttrAsStr(input, "textValue");
+      descriptor->textWidth = AttrTo<uint32_t>(input, "textWidth");
+      descriptor->textHeight = AttrTo<uint32_t>(input, "textHeight");
+      descriptor->textAlign = AttrAsStr(input, "textAlign");
+      v8::Local<v8::Object> textColor = AttrAs<v8::Object>(input, "textColor");
+      v8::Local<v8::Object> textBackground = AttrAs<v8::Object>(input, "textBackground");
+      std::string font = AttrAsStr(input, "textFont") + " " + std::to_string(AttrTo<uint32_t>(input, "textFontSize"));
+      descriptor->textFont = font;
+      descriptor->textLinespacing = AttrTo<double>(input, "textLinespacing");
+      for (unsigned int i = 0; i < 4; i++) {
+        descriptor->textColor[i] = AttrTo<double>(textColor, i);
+        descriptor->textBackground[i] = AttrTo<double>(textBackground, i);
+      }
+    }
     return descriptor;
   }
 
@@ -247,6 +263,39 @@ namespace sharp {
           background.push_back(descriptor->createBackground[3]);
         }
         image = VImage::new_matrix(descriptor->createWidth, descriptor->createHeight).new_from_image(background);
+        image.get_image()->Type = VIPS_INTERPRETATION_sRGB;
+        imageType = ImageType::RAW;
+      } else if (descriptor->text.length() > 0) {
+        // Create new image with text
+        std::vector<double> background = {
+          descriptor->textBackground[0],
+          descriptor->textBackground[1],
+          descriptor->textBackground[2],
+          descriptor->textBackground[3]
+        };
+        std::vector<double> color = {
+          descriptor->textColor[0],
+          descriptor->textColor[1],
+          descriptor->textColor[2],
+          descriptor->textColor[3]
+        };
+        VImage textMask = VImage::new_memory();
+        textMask = textMask.text(&descriptor->text[0u],
+          VImage::option()
+            ->set("font", &descriptor->textFont[0u])
+            ->set("width", descriptor->textWidth)
+            ->set("height", descriptor->textHeight)
+            ->set("align", &descriptor->textAlign[0u])
+            ->set("spacing", descriptor->textLinespacing));
+        if (descriptor->textHeight && textMask.height() > descriptor->textHeight) {
+          textMask = textMask.resize(static_cast<double>(descriptor->textHeight / textMask.height()));
+        }
+        if (descriptor->textWidth && textMask.width() > descriptor->textWidth) {
+          textMask = textMask.resize(static_cast<double>(descriptor->textWidth / textMask.width()));
+        }
+        image = VImage::new_matrix(textMask.width(), textMask.height()).new_from_image(background);
+        VImage colorMask = image.new_from_image(color);
+        image = textMask.ifthenelse(colorMask, image, VImage::option()->set("blend", TRUE));
         image.get_image()->Type = VIPS_INTERPRETATION_sRGB;
         imageType = ImageType::RAW;
       } else {
