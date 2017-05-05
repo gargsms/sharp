@@ -287,11 +287,11 @@ namespace sharp {
             ->set("height", descriptor->textHeight)
             ->set("align", &descriptor->textAlign[0u])
             ->set("spacing", descriptor->textLinespacing));
-        if (descriptor->textHeight && textMask.height() > descriptor->textHeight) {
-          textMask = textMask.resize(static_cast<double>(descriptor->textHeight / textMask.height()));
+        if (descriptor->textHeight && textMask.height() && textMask.height() > descriptor->textHeight) {
+          textMask = textMask.resize(static_cast<double>((double)descriptor->textHeight / textMask.height()));
         }
-        if (descriptor->textWidth && textMask.width() > descriptor->textWidth) {
-          textMask = textMask.resize(static_cast<double>(descriptor->textWidth / textMask.width()));
+        if (descriptor->textWidth && textMask.width() && textMask.width() > descriptor->textWidth) {
+          textMask = textMask.resize(static_cast<double>((double)descriptor->textWidth / textMask.width()));
         }
         image = VImage::new_matrix(textMask.width(), textMask.height()).new_from_image(background);
         VImage colorMask = image.new_from_image(color);
