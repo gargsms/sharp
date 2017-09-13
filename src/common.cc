@@ -267,6 +267,8 @@ namespace sharp {
         imageType = ImageType::RAW;
       } else if (descriptor->text.length() > 0) {
         // Create new image with text
+        int left = 0;
+        int top = 0;
         std::vector<double> background = {
           descriptor->textBackground[0],
           descriptor->textBackground[1],
@@ -293,6 +295,13 @@ namespace sharp {
         if (descriptor->textWidth && textMask.width() && textMask.width() > descriptor->textWidth) {
           textMask = textMask.resize(static_cast<double>(descriptor->textWidth) / textMask.width());
         }
+        if (descriptor->textAlign == "centre") {
+          left = (descriptor->textWidth - textMask.width()) / 2;
+        } else if (descriptor->textAlign == "high") {
+          left = descriptor->textWidth - textMask.width();
+        }
+        top = (descriptor->textHeight - textMask.height()) / 2;
+        textMask = textMask.embed(left, top, descriptor->textWidth, descriptor->textHeight);
         image = VImage::new_matrix(textMask.width(), textMask.height()).new_from_image(background);
         VImage colorMask = image.new_from_image(color);
         image = textMask.ifthenelse(colorMask, image, VImage::option()->set("blend", TRUE));
