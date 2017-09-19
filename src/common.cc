@@ -85,6 +85,7 @@ namespace sharp {
         font = AttrAsStr(input, "textFont");
       }
       descriptor->textFont = font;
+      descriptor->textGravity = AttrAsStr(input, "textGravity");
       descriptor->textLinespacing = AttrTo<double>(input, "textLinespacing");
       for (unsigned int i = 0; i < 4; i++) {
         descriptor->textColor[i] = AttrTo<double>(textColor, i);
@@ -293,20 +294,8 @@ namespace sharp {
             ->set("width", descriptor->textWidth)
             ->set("height", descriptor->textHeight)
             ->set("align", &descriptor->textAlign[0u])
+            ->set("gravity", &descriptor->textGravity[0u])
             ->set("spacing", descriptor->textLinespacing));
-        // if (descriptor->textHeight && textMask.height() && textMask.height() > descriptor->textHeight) {
-        //   textMask = textMask.resize(static_cast<double>(descriptor->textHeight) / textMask.height());
-        // }
-        // if (descriptor->textWidth && textMask.width() && textMask.width() > descriptor->textWidth) {
-        //   textMask = textMask.resize(static_cast<double>(descriptor->textWidth) / textMask.width());
-        // }
-        // if (descriptor->textAlign == "centre") {
-        //   left = (descriptor->textWidth - textMask.width()) / 2;
-        // } else if (descriptor->textAlign == "high") {
-        //   left = descriptor->textWidth - textMask.width();
-        // }
-        // top = (descriptor->textHeight - textMask.height()) / 2;
-        // textMask = textMask.embed(left, top, descriptor->textWidth, descriptor->textHeight);
         image = VImage::new_matrix(textMask.width(), textMask.height()).new_from_image(background);
         VImage colorMask = image.new_from_image(color);
         image = textMask.ifthenelse(colorMask, image, VImage::option()->set("blend", TRUE));

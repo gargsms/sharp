@@ -64,6 +64,7 @@ namespace sharp {
     double textBackground[4];
     std::string textFont;
     int textFontSize;
+    std::string textGravity;
     double textLinespacing;
 
     InputDescriptor():
