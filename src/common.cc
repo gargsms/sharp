@@ -78,7 +78,12 @@ namespace sharp {
       descriptor->textAlign = AttrAsStr(input, "textAlign");
       v8::Local<v8::Object> textColor = AttrAs<v8::Object>(input, "textColor");
       v8::Local<v8::Object> textBackground = AttrAs<v8::Object>(input, "textBackground");
-      std::string font = AttrAsStr(input, "textFont") + " " + std::to_string(AttrTo<uint32_t>(input, "textFontSize"));
+      std::string font;
+      if (AttrTo<uint32_t>(input, "textFontSize")) {
+        font = AttrAsStr(input, "textFont") + " " + std::to_string(AttrTo<uint32_t>(input, "textFontSize"));
+      } else {
+        font = AttrAsStr(input, "textFont");
+      }
       descriptor->textFont = font;
       descriptor->textLinespacing = AttrTo<double>(input, "textLinespacing");
       for (unsigned int i = 0; i < 4; i++) {
@@ -267,8 +272,8 @@ namespace sharp {
         imageType = ImageType::RAW;
       } else if (descriptor->text.length() > 0) {
         // Create new image with text
-        int left = 0;
-        int top = 0;
+        // int left = 0;
+        // int top = 0;
         std::vector<double> background = {
           descriptor->textBackground[0],
           descriptor->textBackground[1],
@@ -289,19 +294,19 @@ namespace sharp {
             ->set("height", descriptor->textHeight)
             ->set("align", &descriptor->textAlign[0u])
             ->set("spacing", descriptor->textLinespacing));
-        if (descriptor->textHeight && textMask.height() && textMask.height() > descriptor->textHeight) {
-          textMask = textMask.resize(static_cast<double>(descriptor->textHeight) / textMask.height());
-        }
-        if (descriptor->textWidth && textMask.width() && textMask.width() > descriptor->textWidth) {
-          textMask = textMask.resize(static_cast<double>(descriptor->textWidth) / textMask.width());
-        }
-        if (descriptor->textAlign == "centre") {
-          left = (descriptor->textWidth - textMask.width()) / 2;
-        } else if (descriptor->textAlign == "high") {
-          left = descriptor->textWidth - textMask.width();
-        }
-        top = (descriptor->textHeight - textMask.height()) / 2;
-        textMask = textMask.embed(left, top, descriptor->textWidth, descriptor->textHeight);
+        // if (descriptor->textHeight && textMask.height() && textMask.height() > descriptor->textHeight) {
+        //   textMask = textMask.resize(static_cast<double>(descriptor->textHeight) / textMask.height());
+        // }
+        // if (descriptor->textWidth && textMask.width() && textMask.width() > descriptor->textWidth) {
+        //   textMask = textMask.resize(static_cast<double>(descriptor->textWidth) / textMask.width());
+        // }
+        // if (descriptor->textAlign == "centre") {
+        //   left = (descriptor->textWidth - textMask.width()) / 2;
+        // } else if (descriptor->textAlign == "high") {
+        //   left = descriptor->textWidth - textMask.width();
+        // }
+        // top = (descriptor->textHeight - textMask.height()) / 2;
+        // textMask = textMask.embed(left, top, descriptor->textWidth, descriptor->textHeight);
         image = VImage::new_matrix(textMask.width(), textMask.height()).new_from_image(background);
         VImage colorMask = image.new_from_image(color);
         image = textMask.ifthenelse(colorMask, image, VImage::option()->set("blend", TRUE));
