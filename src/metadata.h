@@ -27,6 +27,7 @@ struct MetadataBaton {
   std::string format;
   int width;
   int height;
+  int fontSize;
   std::string space;
   int channels;
   int density;
@@ -43,6 +44,7 @@ struct MetadataBaton {
     input(nullptr),
     width(0),
     height(0),
+    fontSize(0),
     channels(0),
     density(0),
     hasProfile(false),

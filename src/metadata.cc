@@ -54,6 +54,9 @@ class MetadataWorker : public Nan::AsyncWorker {
       // VipsImage attributes
       baton->width = image.width();
       baton->height = image.height();
+      if (image.get_typeof("font-size")) {
+        baton->fontSize = image.get_int("font-size");
+      }
       baton->space = vips_enum_nick(VIPS_TYPE_INTERPRETATION, image.interpretation());
       baton->channels = image.bands();
       if (sharp::HasDensity(image)) {
@@ -100,6 +103,9 @@ class MetadataWorker : public Nan::AsyncWorker {
       Set(info, New("format").ToLocalChecked(), New<v8::String>(baton->format).ToLocalChecked());
       Set(info, New("width").ToLocalChecked(), New<v8::Uint32>(baton->width));
       Set(info, New("height").ToLocalChecked(), New<v8::Uint32>(baton->height));
+      if (baton->fontSize > 0) {
+        Set(info, New("fontSize").ToLocalChecked(), New<v8::Uint32>(baton->fontSize));
+      }
       Set(info, New("space").ToLocalChecked(), New<v8::String>(baton->space).ToLocalChecked());
       Set(info, New("channels").ToLocalChecked(), New<v8::Uint32>(baton->channels));
       if (baton->density > 0) {
